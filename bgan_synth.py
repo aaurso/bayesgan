@@ -232,6 +232,10 @@ if __name__ == "__main__":
         np.random.seed(args.random_seed)
         tf.set_random_seed(args.random_seed)
 
+    if args.random_seed is not None:
+        np.random.seed(args.random_seed)
+        tf.set_random_seed(args.random_seed)
+
     if not os.path.exists(args.out_dir):
         print "Creating %s" % args.out_dir
         os.makedirs(args.out_dir)
@@ -242,16 +246,20 @@ if __name__ == "__main__":
     with open(os.path.join(results_path, "args.txt"), "w") as hf:
         hf.write("Experiment settings:\n")
         hf.write("%s\n" % (pprint.pformat(args.__dict__)))
-    
+
     synth_d = SynthDataset(args.x_dim)
 
     results = bgan_synth(synth_d, args.z_dim, num_iter=args.train_iter, 
                          numz=args.numz, wasserstein=args.wasserstein, 
                          rpath=results_path, save_weights=args.save_weights)
 
-    np.savez(os.path.join(results_path, "run_%s_%s.npz" % ("wasserstein" if args.wasserstein else "regular",
-                                                           "ml" if args.numz == 1 else "bayes")),
-             **results)
+    np.savez(
+        os.path.join(
+            results_path,
+            f'run_{"wasserstein" if args.wasserstein else "regular"}_{"ml" if args.numz == 1 else "bayes"}.npz',
+        ),
+        **results,
+    )
 
 
 

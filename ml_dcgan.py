@@ -39,7 +39,7 @@ def ml_dcgan(dataset, args):
     x_dim = dataset.x_dim
     batch_size = args.batch_size
 
-    print "Starting session"
+    z_dim = args.z_dim
     session = get_session()
 
     dcgan = BDCGAN(x_dim, z_dim,
@@ -49,8 +49,7 @@ def ml_dcgan(dataset, args):
 
     tf.global_variables_initializer().run()
 
-    print "Starting training loop"
-        
+    z_dim = args.z_dim
     labeled_image_batches, label_batches = get_supervised_batches(dataset, args.N, batch_size, range(dataset.num_classes))
     test_image_batches, test_label_batches = get_test_batches(dataset, batch_size)
 
@@ -58,7 +57,7 @@ def ml_dcgan(dataset, args):
         
         batch_z = np.random.uniform(-1, 1, [batch_size, z_dim])
         image_batch, _ = dataset.next_batch(batch_size, class_id=None)
-        
+
         rand_batch_idx = np.random.randint(len(labeled_image_batches))
         _, d_loss = session.run([dcgan.d_optim_semi, dcgan.d_loss_semi], feed_dict={dcgan.labeled_inputs: labeled_image_batches[rand_batch_idx],
                                                                                     dcgan.labels: get_gan_labels(label_batches[rand_batch_idx]),
@@ -74,21 +73,24 @@ def ml_dcgan(dataset, args):
         if train_iter % args.n_save == 0:
             # get test set performance on real labels only for both GAN-based classifier and standard one
             d_logits, s_logits, lbls = get_test_stats(session, dcgan, test_image_batches, test_label_batches)
-            print "saving results"
+            # get test set performance on real labels only for both GAN-based classifier and standard one
+            d_logits, s_logits, lbls = get_test_stats(session, dcgan, test_image_batches, test_label_batches)
             np.savez_compressed(os.path.join(args.out_dir, 'results_%i.npz' % train_iter),
                                 d_logits=d_logits, s_logits=s_logits, lbls=lbls)
 
-            var_dict = {}
-            for var in tf.trainable_variables():
-                var_dict[var.name] = session.run(var.name)
-
+            var_dict = {
+                var.name: session.run(var.name)
+                for var in tf.trainable_variables()
+            }
             np.savez_compressed(os.path.join(args.out_dir,
                                              "weights_%i.npz" % train_iter),
                                 **var_dict)
-            
 
-            print "done"
 
-    print "closing session"
+            # get test set performance on real labels only for both GAN-based classifier and standard one
+            d_logits, s_logits, lbls = get_test_stats(session, dcgan, test_image_batches, test_label_batches)
+                    print "done"
+
+    z_dim = args.z_dim
     session.close()
     tf.reset_default_graph()

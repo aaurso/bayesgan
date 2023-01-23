@@ -88,8 +88,7 @@ def wn_conv2d(x, num_output_filters, filter_size, stride,
         #W = tf.reshape(g, [1,1,1,num_output_filters])*tf.nn.l2_normalize(V,[0,1,2])
         W = V
         conv = tf.nn.bias_add(tf.nn.conv2d(x, W, strides=[1]+stride+[1], padding=pad), b)
-        out = lrelu(conv)
-        return out
+        return lrelu(conv)
 
 
 
@@ -111,10 +110,7 @@ def deconv2d(input_, output_shape,
                                      initializer=tf.constant_initializer(0.0))
         deconv = tf.reshape(tf.nn.bias_add(deconv, biases), deconv.get_shape())
 
-        if with_w:
-            return deconv, w, biases
-        else:
-            return deconv
+        return (deconv, w, biases) if with_w else deconv
 
 
 def lrelu(x, leak=0.2, name="lrelu"):

@@ -107,7 +107,11 @@ def to_json(output_path, *layers):
 
             biases = {"sy": 1, "sx": 1, "depth": depth,
                       "w": ['%.2f' % elem for elem in list(B)]}
-            if bn != None:
+            if bn is None:
+                gamma = {"sy": 1, "sx": 1, "depth": 0, "w": []}
+                beta = {"sy": 1, "sx": 1, "depth": 0, "w": []}
+
+            else:
                 gamma = bn.gamma.eval()
                 beta = bn.beta.eval()
 
@@ -115,16 +119,17 @@ def to_json(output_path, *layers):
                     '%.2f' % elem for elem in list(gamma)]}
                 beta = {"sy": 1, "sx": 1, "depth": depth, "w": [
                     '%.2f' % elem for elem in list(beta)]}
-            else:
-                gamma = {"sy": 1, "sx": 1, "depth": 0, "w": []}
-                beta = {"sy": 1, "sx": 1, "depth": 0, "w": []}
-
+            fs = []
             if "lin/" in w.name:
-                fs = []
-                for w in W.T:
-                    fs.append({"sy": 1, "sx": 1, "depth": W.shape[0], "w": [
-                              '%.2f' % elem for elem in list(w)]})
-
+                fs.extend(
+                    {
+                        "sy": 1,
+                        "sx": 1,
+                        "depth": W.shape[0],
+                        "w": ['%.2f' % elem for elem in list(w)],
+                    }
+                    for w in W.T
+                )
                 lines += """
           var layer_%s = {
             "layer_type": "fc", 
@@ -138,11 +143,15 @@ def to_json(output_path, *layers):
             "filters": %s
           };""" % (layer_idx.split('_')[0], W.shape[1], W.shape[0], biases, gamma, beta, fs)
             else:
-                fs = []
-                for w_ in W:
-                    fs.append({"sy": 5, "sx": 5, "depth": W.shape[3], "w": [
-                              '%.2f' % elem for elem in list(w_.flatten())]})
-
+                fs.extend(
+                    {
+                        "sy": 5,
+                        "sx": 5,
+                        "depth": W.shape[3],
+                        "w": ['%.2f' % elem for elem in list(w_.flatten())],
+                    }
+                    for w_ in W
+                )
                 lines += """
           var layer_%s = {
             "layer_type": "deconv", 
@@ -183,8 +192,11 @@ def visualize(sess, dcgan, config, option):
         z_sample = np.random.uniform(-0.5, 0.5,
                                      size=(config.batch_size, dcgan.z_dim))
         samples = sess.run(dcgan.sampler, feed_dict={dcgan.z: z_sample})
-        save_images(samples, [image_frame_dim, image_frame_dim],
-                    './samples/test_%s.png' % strftime("%Y-%m-%d %H:%M:%S", gmtime()))
+        save_images(
+            samples,
+            [image_frame_dim, image_frame_dim],
+            f'./samples/test_{strftime("%Y-%m-%d %H:%M:%S", gmtime())}.png',
+        )
     elif option == 1:
         values = np.arange(0, 1, 1. / config.batch_size)
         for idx in xrange(100):
@@ -204,8 +216,11 @@ def visualize(sess, dcgan, config, option):
                 samples = sess.run(dcgan.sampler, feed_dict={
                                    dcgan.z: z_sample})
 
-            save_images(samples, [image_frame_dim, image_frame_dim],
-                        './samples/test_arange_%s.png' % (idx))
+            save_images(
+                samples,
+                [image_frame_dim, image_frame_dim],
+                f'./samples/test_arange_{idx}.png',
+            )
     elif option == 2:
         values = np.arange(0, 1, 1. / config.batch_size)
         for idx in [random.randint(0, 99) for _ in xrange(100)]:
@@ -228,10 +243,13 @@ def visualize(sess, dcgan, config, option):
                                    dcgan.z: z_sample})
 
             try:
-                make_gif(samples, './samples/test_gif_%s.gif' % (idx))
+                make_gif(samples, f'./samples/test_gif_{idx}.gif')
             except:
-                save_images(samples, [image_frame_dim, image_frame_dim],
-                            './samples/test_%s.png' % strftime("%Y-%m-%d %H:%M:%S", gmtime()))
+                save_images(
+                    samples,
+                    [image_frame_dim, image_frame_dim],
+                    f'./samples/test_{strftime("%Y-%m-%d %H:%M:%S", gmtime())}.png',
+                )
     elif option == 3:
         values = np.arange(0, 1, 1. / config.batch_size)
         for idx in xrange(100):
@@ -241,7 +259,7 @@ def visualize(sess, dcgan, config, option):
                 z[idx] = values[kdx]
 
             samples = sess.run(dcgan.sampler, feed_dict={dcgan.z: z_sample})
-            make_gif(samples, './samples/test_gif_%s.gif' % (idx))
+            make_gif(samples, f'./samples/test_gif_{idx}.gif')
     elif option == 4:
         image_set = []
         values = np.arange(0, 1, 1. / config.batch_size)
@@ -254,7 +272,7 @@ def visualize(sess, dcgan, config, option):
 
             image_set.append(
                 sess.run(dcgan.sampler, feed_dict={dcgan.z: z_sample}))
-            make_gif(image_set[-1], './samples/test_gif_%s.gif' % (idx))
+            make_gif(image_set[-1], f'./samples/test_gif_{idx}.gif')
 
         new_image_set = [merge(np.array([images[idx] for images in image_set]), [10, 10])
                          for idx in range(64) + range(63, -1, -1)]

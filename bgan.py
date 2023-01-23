@@ -9,8 +9,7 @@ from dcgan_ops import *
 
 
 def conv_out_size(size, stride):
-    co = int(math.ceil(size / float(stride)))
-    return co
+    return int(math.ceil(size / float(stride)))
 
 def kernel_sizer(size, stride):
     ko = int(math.ceil(size / float(stride)))
@@ -230,27 +229,32 @@ class BDCGAN(object):
         
 
     def build_bgan_graph(self):
-    
+
         self.inputs = tf.placeholder(tf.float32,
                                      [self.batch_size] + self.x_dim, name='real_images')
 
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim, self.num_gen], name='z')
         self.z_sampler = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z_sampler')
-        
+
         # initialize generator weights
         self.gen_param_list = self.initialize_wgts("generator")
         self.disc_param_list = self.initialize_wgts("discriminator")
         ### build discrimitive losses and optimizers
         # prep optimizer args
         self.d_learning_rate = tf.placeholder(tf.float32, shape=[])
-        
+
         # compile all disciminative weights
         t_vars = tf.trainable_variables()
         self.d_vars = []
         for di in xrange(self.num_disc):
-            for m in xrange(self.num_mcmc):
-                self.d_vars.append([var for var in t_vars if 'd_' in var.name and "_%04d_%04d" % (di, m) in var.name])
-
+            self.d_vars.extend(
+                [
+                    var
+                    for var in t_vars
+                    if 'd_' in var.name and "_%04d_%04d" % (di, m) in var.name
+                ]
+                for m in xrange(self.num_mcmc)
+            )
         ### build disc losses and optimizers
         self.d_losses, self.d_optims, self.d_optims_adam = [], [], []
         for di, disc_params in enumerate(self.disc_param_list):
@@ -290,9 +294,14 @@ class BDCGAN(object):
         self.g_learning_rate = tf.placeholder(tf.float32, shape=[])
         self.g_vars = []
         for gi in xrange(self.num_gen):
-            for m in xrange(self.num_mcmc):
-                self.g_vars.append([var for var in t_vars if 'g_' in var.name and "_%04d_%04d" % (gi, m) in var.name])
-        
+            self.g_vars.extend(
+                [
+                    var
+                    for var in t_vars
+                    if 'g_' in var.name and "_%04d_%04d" % (gi, m) in var.name
+                ]
+                for m in xrange(self.num_mcmc)
+            )
         self.g_losses, self.g_optims, self.g_optims_adam = [], [], []
         for gi, gen_params in enumerate(self.gen_param_list):
 
@@ -310,7 +319,7 @@ class BDCGAN(object):
                 if not self.ml:
                     g_loss_ += self.gen_prior(gen_params) + self.gen_noise(gen_params)
                 gi_losses.append(tf.reshape(g_loss_, [1]))
-                
+
             g_loss = tf.reduce_logsumexp(tf.concat(gi_losses, 0))
             self.g_losses.append(g_loss)
             g_opt = self._get_optimizer(self.g_learning_rate)
@@ -320,8 +329,10 @@ class BDCGAN(object):
 
         ### build samplers
         self.gen_samplers = []
-        for gi, gen_params in enumerate(self.gen_param_list):
-            self.gen_samplers.append(self.generator(self.z_sampler, gen_params))
+        self.gen_samplers.extend(
+            self.generator(self.z_sampler, gen_params)
+            for gen_params in self.gen_param_list
+        )
 
 
     def discriminator(self, image, K, disc_params, train=True):
