@@ -195,20 +195,21 @@ class CelebDataset():
     def get_class_id(self, img_name):
 
         features = self.attr_dict[img_name]
-        class_id = 0
-        for (sfi, sf) in enumerate(self.salient_features):
-            if features[sf] == 1:
-                class_id += 2**sfi
-        return class_id
+        return sum(
+            2**sfi
+            for sfi, sf in enumerate(self.salient_features)
+            if features[sf] == 1
+        )
             
 
     def get_batch(self, rand_idx):
         
-        new_image_batch = []; new_lbl_batch = []
+        new_image_batch = []
+        new_lbl_batch = []
         for ridx in rand_idx:
             orig_name = "%06d.jpg" % (ridx + 1)
             img_name = "%06d_cropped.jpg" % (ridx + 1)
-            img_path = os.path.join(self.path, "img_align_celeba/%s" % img_name)
+            img_path = os.path.join(self.path, f"img_align_celeba/{img_name}")
             if not os.path.exists(img_path):
                 continue
             X = imread(img_path)
@@ -299,23 +300,25 @@ class SVHN():
 def get_imagenet_val(path, x_dim, subsample=True):
     
     dirnames = [dn for dn in os.listdir(os.path.join(path, "val_256")) if dn[0] == "n"]
-    assert len(dirnames), "invalid path %s given!" % (path)
-    
-    val_imgs = []; val_targets = []; class_dict = {}
+    assert len(dirnames), f"invalid path {path} given!"
+
+    val_imgs = []
+    val_targets = []
+    class_dict = {}
     for dir_id, dirname in enumerate(dirnames):
         full_dirname = os.path.join(os.path.join(path, "val_256"), dirname)
         im_names = glob.glob(os.path.join(full_dirname, "*.JPEG"))
-        assert len(im_names), "no images in dir %s, fix data" % full_dirname
+        assert len(im_names), f"no images in dir {full_dirname}, fix data"
         for im_file in im_names:
             if subsample and np.random.rand() < 0.8:
                 continue
             X = imread(im_file)
-            if X.shape != tuple([256, 256, 3]):
+            if X.shape != (256, 256, 3):
                 continue
             val_imgs.append(X[None, ::4, ::4, :])
             val_targets.append(dir_id)
         class_dict[dirname] = dir_id
-    
+
     return np.concatenate(val_imgs), np.array(val_targets), class_dict
           
     
@@ -380,20 +383,20 @@ class ImageNet():
             rdir = os.path.join(os.path.join(self.path, "train_256"), 
                                 rdir_name)
             im_names = glob.glob(os.path.join(rdir, "*.JPEG"))
-            assert len(im_names), "no images in dir %s, fix data" % rdir
+            assert len(im_names), f"no images in dir {rdir}, fix data"
             rand_im_name = np.random.choice(im_names)
             if rand_im_name not in rand_imgs:
                 X = imread(rand_im_name)
-                if X.shape != tuple([256, 256, 3]):
+                if X.shape != (256, 256, 3):
                     continue
                 batch_imgs.append(X[None, ::4, ::4, :])
                 batch_lbls.append(self.class_dict[rdir_name])
                 rand_imgs.append(rand_im_name)
-        
+
         self.batch_images = np.concatenate(batch_imgs)
         self.batch_imgs = self.batch_images / 255.
         self.batch_imgs = self.batch_imgs * 2 - 1.
-        
+
         self.batch_lbls = one_hot_encoded(np.array(batch_lbls),
                                           self.num_classes)
 

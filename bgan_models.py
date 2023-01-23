@@ -91,13 +91,13 @@ class BGAN(object):
 
 
     def build_bgan_graph(self):
-    
+
         self.inputs = tf.placeholder(tf.float32,
                                      [self.batch_size] + self.x_dim, name='real_images')
-        
+
         self.labeled_inputs = tf.placeholder(tf.float32,
                                              [self.batch_size] + self.x_dim, name='real_images_w_labels')
-        
+
         self.labels = tf.placeholder(tf.float32,
                                      [self.batch_size, self.K+1], name='real_targets')
 
@@ -131,7 +131,7 @@ class BGAN(object):
             self.d_loss_sup = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.Dsup_logits,
                                                                                      labels=self.labels))    
             self.d_loss_real = -tf.reduce_mean(tf.log((1.0 - self.D[:, 0]) + 1e-8))
-                        
+
 
         self.generation = defaultdict(list)
         for gen_params in self.gen_param_list:
@@ -142,7 +142,7 @@ class BGAN(object):
             D_, D_logits_ = self.discriminator(self.generator(self.z, gen_params), self.K+1, reuse=True)
             self.generation["d_logits"].append(D_logits_)
             self.generation["d_probs"].append(D_)
-            
+
 
         d_loss_fakes = []
         if self.wasserstein:
@@ -150,10 +150,14 @@ class BGAN(object):
         else:
             constant_labels = np.zeros((self.batch_size, self.K+1))
             constant_labels[:, 0] = 1.0 # class label indicating it came from generator, aka fake
-            for d_logits_ in self.generation["d_logits"]:
-                d_loss_fakes.append(tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=d_logits_,
-                                                                                           labels=tf.constant(constant_labels))))
-
+            d_loss_fakes.extend(
+                tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(
+                        logits=d_logits_, labels=tf.constant(constant_labels)
+                    )
+                )
+                for d_logits_ in self.generation["d_logits"]
+            )
         t_vars = tf.trainable_variables()
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
 
@@ -173,19 +177,24 @@ class BGAN(object):
         self.d_loss = tf.reduce_logsumexp(tf.concat(d_losses, 0))
         if self.K > 1:
             self.d_loss_semi = tf.reduce_logsumexp(tf.concat(d_losses_semi, 0))
-        
+
         self.g_vars = []
         for gi in xrange(self.num_gen):
-            for m in xrange(self.num_mcmc):
-                self.g_vars.append([var for var in t_vars if 'g_' in var.name and "_%04d_%04d" % (gi, m) in var.name])
-
+            self.g_vars.extend(
+                [
+                    var
+                    for var in t_vars
+                    if 'g_' in var.name and "_%04d_%04d" % (gi, m) in var.name
+                ]
+                for m in xrange(self.num_mcmc)
+            )
         self.d_learning_rate = tf.placeholder(tf.float32, shape=[])
         d_opt = self._get_optimizer(self.d_learning_rate)
         self.d_optim = d_opt.minimize(self.d_loss, var_list=self.d_vars)
 
         d_opt_adam = tf.train.AdamOptimizer(learning_rate=self.d_learning_rate, beta1=0.5)
         self.d_optim_adam = d_opt_adam.minimize(self.d_loss, var_list=self.d_vars)
-        
+
         clip_d = [w.assign(tf.clip_by_value(w, -0.01, 0.01)) for w in self.d_vars]
         self.clip_d = clip_d
 
@@ -195,7 +204,7 @@ class BGAN(object):
             self.d_optim_semi = d_opt_semi.minimize(self.d_loss_semi, var_list=self.d_vars)
             d_opt_semi_adam = tf.train.AdamOptimizer(learning_rate=self.d_semi_learning_rate, beta1=0.5)
             self.d_optim_semi_adam = d_opt_semi_adam.minimize(self.d_loss_semi, var_list=self.d_vars)
-        
+
         self.g_optims, self.g_optims_adam = [], []
         self.g_learning_rate = tf.placeholder(tf.float32, shape=[])
         for gi in xrange(self.num_gen*self.num_mcmc):
